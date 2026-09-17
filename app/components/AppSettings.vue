@@ -52,9 +52,8 @@ const saveEdit = (id: string) => {
     </button>
 
     <!-- Modal / Tiroir Paramètres -->
-    <div v-if="isOpen" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div class="w-full sm:max-w-md bg-neutral-900 border border-neutral-800 rounded-t-3xl sm:rounded-2xl p-6 text-white max-h-[90vh] overflow-y-auto">
-        
+<div v-if="isOpen" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+<div class="w-full sm:max-w-md bg-neutral-900 border border-neutral-800 rounded-t-3xl sm:rounded-2xl p-6 text-white max-h-[90vh] overflow-y-auto pb-16">        
         <!-- En-tête modal -->
         <div class="flex justify-between items-center mb-6">
           <h2 class="text-lg font-bold">Paramètres & Rituels</h2>
