@@ -17,6 +17,7 @@
     "@nuxt/ui": "^4.11.0",
     "@pinia/nuxt": "^1.0.2",
     "chart.js": "^4.5.1",
+    "firebase": "^12.19.0",
     "nuxt": "^4.5.2",
     "pinia": "^4.0.3",
     "vue-chartjs": "^5.3.4"
