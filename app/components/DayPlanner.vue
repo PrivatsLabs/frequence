@@ -1,79 +1,116 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useFrequenceStore } from '@/stores/frequence'
+import { spawnRipple } from '~/utils/ripple'
 
 const store = useFrequenceStore()
+
+const progress = computed(() => store.totalCount > 0 ? store.completedCount / store.totalCount : 0)
+const R = 54
+const CIRC = 2 * Math.PI * R
+const dashoffset = computed(() => CIRC * (1 - progress.value))
+
+function handleTileClick(e: MouseEvent, id: string) {
+  spawnRipple(e)
+  store.toggleTask(id)
+}
 </script>
 
 <template>
   <div class="w-full">
-    <!-- En-tête du jour -->
-    <div class="flex justify-between items-center mb-5 px-1">
-      <div>
-        <h2 class="text-xl font-bold tracking-tight">Rituels du jour</h2>
-        <p class="text-xs text-neutral-400">Ce que tu fais obligatoirement aujourd'hui</p>
-      </div>
-      <div class="text-xs font-mono bg-neutral-900 border border-neutral-800 px-3 py-1.5 rounded-full text-emerald-400 shadow-sm">
-        {{ store.completedCount }} / {{ store.totalCount }}
+    <!-- Hero : anneau de progression -->
+    <div
+      class="flex items-center gap-5 p-5 mb-6 rounded-[28px]"
+      style="background: var(--surface); border: 1px solid var(--surface-hairline);"
+    >
+      <svg width="104" height="104" viewBox="0 0 120 120" class="shrink-0 -rotate-90">
+        <circle cx="60" cy="60" :r="R" fill="none" stroke="var(--surface-high)" stroke-width="10" />
+        <circle
+          cx="60" cy="60" :r="R" fill="none"
+          stroke="var(--ember)" stroke-width="10" stroke-linecap="round"
+          :stroke-dasharray="CIRC"
+          :stroke-dashoffset="dashoffset"
+          style="transition: stroke-dashoffset 700ms var(--ease-spring);"
+        />
+      </svg>
+      <div class="flex-1">
+        <h2 class="text-xl font-bold tracking-tight" style="font-family: var(--font-display);">Rituels du jour</h2>
+        <p class="text-xs mb-2" style="color: var(--on-surface-dim);">Ce que tu fais obligatoirement aujourd'hui</p>
+        <Transition name="pop" mode="out-in">
+          <div :key="store.completedCount" class="text-2xl font-extrabold" style="font-family: var(--font-display); color: var(--ember);">
+            {{ store.completedCount }}<span class="text-sm font-medium" style="color: var(--on-surface-faint);"> / {{ store.totalCount }}</span>
+          </div>
+        </Transition>
       </div>
     </div>
 
-    <!-- Bannière de Célébration si TOUT est validé ! -->
-    <transition name="fade">
-      <div 
+    <!-- Bannière de célébration -->
+    <Transition name="pop">
+      <div
         v-if="store.totalCount > 0 && store.completedCount === store.totalCount"
-        class="mb-5 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-emerald-500/20 border border-emerald-500/40 text-center shadow-lg shadow-emerald-500/10 animate-pulse"
+        class="celebrate-in mb-5 p-4 rounded-[28px] text-center"
+        style="background: linear-gradient(135deg, var(--ember-container), var(--violet-container)); border: 1px solid var(--ember-dim);"
       >
-        <div class="text-2xl mb-1">🎉 🔥 🏆</div>
-        <h3 class="text-sm font-bold text-emerald-300">Journée Validée avec Succès !</h3>
-        <p class="text-xs text-neutral-300 mt-0.5">Tous tes rituels sont accomplis. Repose-toi bien !</p>
+        <div class="text-2xl mb-1">🔥 🏆 🔥</div>
+        <h3 class="text-sm font-bold" style="color: var(--ember);">Journée Validée avec Succès !</h3>
+        <p class="text-xs mt-0.5" style="color: var(--on-surface-dim);">Tous tes rituels sont accomplis. Repose-toi bien !</p>
       </div>
-    </transition>
+    </Transition>
 
     <!-- Liste des tâches -->
     <div class="space-y-3">
-      <div 
-        v-for="task in store.tasks" 
+      <div
+        v-for="task in store.tasks"
         :key="task.id"
-        @click="store.toggleTask(task.id)"
-        :class="[
-          'flex items-center justify-between p-4 rounded-2xl cursor-pointer transition-all duration-300 border select-none',
-          task.completed 
-            ? 'bg-emerald-950/20 border-emerald-500/30 text-neutral-400 scale-[0.99]' 
-            : 'bg-neutral-900/80 border-neutral-800 hover:border-neutral-700 text-white shadow-lg active:scale-[0.98]'
-        ]"
+        @click="handleTileClick($event, task.id)"
+        class="ripple-container flex items-center justify-between p-4 rounded-[20px] cursor-pointer select-none"
+        :style="{
+          background: task.completed ? 'var(--ember-container)' : 'var(--surface)',
+          border: `1px solid ${task.completed ? 'var(--ember-dim)' : 'var(--surface-hairline)'}`,
+          transition: 'all 320ms var(--ease-spring)',
+          transform: task.completed ? 'scale(0.99)' : 'scale(1)'
+        }"
       >
         <div class="flex items-center gap-3.5 flex-1 pr-3">
-          <!-- Icône de la tâche avec effet bounce si validée -->
-          <span :class="['text-xl w-8 h-8 rounded-xl bg-neutral-800/80 flex items-center justify-center shrink-0 border border-neutral-700/50 transition-transform', task.completed ? 'scale-110 bg-emerald-500/20 border-emerald-500/40' : '']">
+          <span
+            class="text-xl w-9 h-9 rounded-2xl flex items-center justify-center shrink-0"
+            :style="{
+              background: task.completed ? 'var(--ember)' : 'var(--surface-high)',
+              transform: task.completed ? 'scale(1.06)' : 'scale(1)',
+              transition: 'all 320ms var(--ease-spring)'
+            }"
+          >
             {{ task.icon || '⚡' }}
           </span>
-          <span :class="['text-base font-medium transition-all', task.completed ? 'line-through text-neutral-500' : '']">
+          <span
+            class="text-base font-medium"
+            :style="{
+              color: task.completed ? 'var(--on-surface-dim)' : 'var(--on-surface)',
+              textDecoration: task.completed ? 'line-through' : 'none',
+              transition: 'color 320ms ease'
+            }"
+          >
             {{ task.title }}
           </span>
         </div>
-        
-        <!-- Checkbox visuelle avec transition douce -->
-        <div :class="[
-          'w-7 h-7 rounded-xl flex items-center justify-center transition-all duration-300 shrink-0',
-          task.completed ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/30 rotate-6' : 'border-2 border-neutral-700'
-        ]">
-          <svg v-if="task.completed" class="w-4 h-4 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+
+        <div
+          class="w-8 h-8 rounded-2xl flex items-center justify-center shrink-0"
+          :style="{
+            background: task.completed ? 'var(--ember)' : 'transparent',
+            border: task.completed ? 'none' : '2px solid var(--surface-hairline)',
+            transform: task.completed ? 'rotate(6deg) scale(1)' : 'scale(0.9)',
+            transition: 'all 380ms var(--ease-spring)'
+          }"
+        >
+          <svg v-if="task.completed" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="#15120f" stroke-width="3">
+            <path
+              stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"
+              pathLength="1" stroke-dasharray="1" stroke-dashoffset="0"
+            />
           </svg>
         </div>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.4s ease, transform 0.4s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-</style>
