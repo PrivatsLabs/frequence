@@ -1,9 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { db } from '~/utils/firebase'
+import { db, auth } from '~/utils/firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
+import {
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut as fbSignOut
+} from 'firebase/auth'
 import { nextColor } from '~/utils/palette'
 import { playTaskComplete, playAllComplete } from '~/utils/sound'
+import { hapticTick, hapticSuccess } from '~/utils/haptics'
 
 export interface Task {
   id: string
@@ -13,8 +20,26 @@ export interface Task {
   color?: string
 }
 
+
+
+function mapAuthError(code: string): string {
+  const map: Record<string, string> = {
+    'auth/email-already-in-use': 'Cet email est déjà utilisé.',
+    'auth/invalid-email': 'Adresse email invalide.',
+    'auth/weak-password': 'Le mot de passe doit contenir au moins 6 caractères.',
+    'auth/user-not-found': 'Aucun compte ne correspond à cet email.',
+    'auth/wrong-password': 'Mot de passe incorrect.',
+    'auth/invalid-credential': 'Email ou mot de passe incorrect.',
+    'auth/too-many-requests': 'Trop de tentatives. Réessaie plus tard.',
+  }
+  return map[code] || 'Une erreur est survenue.'
+}
+
 export const useFrequenceStore = defineStore('frequence', () => {
-  const docId = 'default_user_data'
+  const userId = ref<string | null>(null)
+  const userEmail = ref<string | null>(null)
+  const authLoading = ref(true)
+  const authError = ref<string | null>(null)
 
   const tasks = ref<Task[]>([])
   const history = ref<Record<string, number>>({})
@@ -31,8 +56,9 @@ export const useFrequenceStore = defineStore('frequence', () => {
   })
 
   async function saveDataToCloud() {
+    if (!userId.value) return
     try {
-      await setDoc(doc(db, 'frequence_data', docId), {
+      await setDoc(doc(db, 'frequence_data', userId.value), {
         tasks: tasks.value,
         history: history.value,
         taskLog: taskLog.value,
@@ -55,44 +81,95 @@ export const useFrequenceStore = defineStore('frequence', () => {
     }
   }
 
-  async function loadDataFromCloud() {
+  function applyData(data: any) {
+    if (data.tasks) tasks.value = data.tasks
+    if (data.history) history.value = data.history
+    if (data.taskLog) taskLog.value = data.taskLog
+    if (data.timezone) timezone.value = data.timezone
+    if (data.lastActiveDay) lastActiveDay.value = data.lastActiveDay
+
+    let needsColorSave = false
+    tasks.value = tasks.value.map((t, i) => {
+      if (!t.color) {
+        needsColorSave = true
+        return { ...t, color: nextColor(i) }
+      }
+      return t
+    })
+    return needsColorSave
+  }
+
+  async function loadDataFromCloud(uid: string) {
     try {
-      const docSnap = await getDoc(doc(db, 'frequence_data', docId))
+      const docSnap = await getDoc(doc(db, 'frequence_data', uid))
       if (docSnap.exists()) {
-        const data = docSnap.data()
-        if (data.tasks) tasks.value = data.tasks
-        if (data.history) history.value = data.history
-        if (data.taskLog) taskLog.value = data.taskLog
-        if (data.timezone) timezone.value = data.timezone
-        if (data.lastActiveDay) lastActiveDay.value = data.lastActiveDay
-
-        // Attribue une couleur aux tâches créées avant ce changement
-        let needsColorSave = false
-        tasks.value = tasks.value.map((t, i) => {
-          if (!t.color) {
-            needsColorSave = true
-            return { ...t, color: nextColor(i) }
-          }
-          return t
-        })
-
+        const needsColorSave = applyData(docSnap.data())
         resetIfNewDay()
         if (needsColorSave) await saveDataToCloud()
       } else {
-        tasks.value = [
-          { id: '1', title: 'Sport / Mobilité', icon: '🏃‍♂️', completed: false, color: nextColor(0) },
-          { id: '2', title: 'Lecture (30 min)', icon: '📚', completed: false, color: nextColor(1) },
-          { id: '3', title: 'Avancer sur le projet web', icon: '💻', completed: false, color: nextColor(2) },
-        ]
-        lastActiveDay.value = todayKey.value
-        await saveDataToCloud()
+        // Migration ponctuelle : récupère les données de l'ancien mode mono-utilisateur
+        // pour le premier compte qui se connecte (une seule fois, tant qu'aucun doc n'existe pour ce uid)
+        const legacySnap = await getDoc(doc(db, 'frequence_data', 'default_user_data'))
+        if (legacySnap.exists()) {
+          applyData(legacySnap.data())
+          lastActiveDay.value = todayKey.value
+          await saveDataToCloud()
+        } else {
+          tasks.value = [
+            { id: '1', title: 'Sport / Mobilité', icon: '🏃‍♂️', completed: false, color: nextColor(0) },
+            { id: '2', title: 'Lecture (30 min)', icon: '📚', completed: false, color: nextColor(1) },
+            { id: '3', title: 'Avancer sur le projet web', icon: '💻', completed: false, color: nextColor(2) },
+          ]
+          lastActiveDay.value = todayKey.value
+          await saveDataToCloud()
+        }
       }
     } catch (error) {
       console.error("Erreur de chargement Firebase :", error)
     }
   }
 
-  loadDataFromCloud()
+  function initAuth() {
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        userId.value = user.uid
+        userEmail.value = user.email
+        await loadDataFromCloud(user.uid)
+      } else {
+        userId.value = null
+        userEmail.value = null
+        tasks.value = []
+        history.value = {}
+        taskLog.value = {}
+        lastActiveDay.value = ''
+      }
+      authLoading.value = false
+    })
+  }
+
+  async function signUp(email: string, password: string) {
+    authError.value = null
+    try {
+      await createUserWithEmailAndPassword(auth, email, password)
+    } catch (e: any) {
+      authError.value = mapAuthError(e.code)
+      throw e
+    }
+  }
+
+  async function signIn(email: string, password: string) {
+    authError.value = null
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+    } catch (e: any) {
+      authError.value = mapAuthError(e.code)
+      throw e
+    }
+  }
+
+  async function logout() {
+    await fbSignOut(auth)
+  }
 
   const completedCount = computed<number>(() => tasks.value.filter(t => t.completed).length)
   const totalCount = computed<number>(() => tasks.value.length)
@@ -128,8 +205,10 @@ export const useFrequenceStore = defineStore('frequence', () => {
 
       saveDataToCloud()
 
+      hapticTick()
       playTaskComplete()
       if (completedCount.value === totalCount.value) {
+        hapticSuccess()
         setTimeout(() => playAllComplete(), 180)
       }
     }
@@ -142,14 +221,14 @@ export const useFrequenceStore = defineStore('frequence', () => {
     saveDataToCloud()
   }
 
-function updateTask(id: string, newTitle: string, newIcon?: string) {
-  const task = tasks.value.find(t => t.id === id)
-  if (task && newTitle.trim()) {
-    task.title = newTitle.trim()
-    if (newIcon) task.icon = newIcon
-    saveDataToCloud()
+  function updateTask(id: string, newTitle: string, newIcon?: string) {
+    const task = tasks.value.find(t => t.id === id)
+    if (task && newTitle.trim()) {
+      task.title = newTitle.trim()
+      if (newIcon) task.icon = newIcon
+      saveDataToCloud()
+    }
   }
-}
 
   function deleteTask(id: string) {
     tasks.value = tasks.value.filter(t => t.id !== id)
@@ -157,9 +236,39 @@ function updateTask(id: string, newTitle: string, newIcon?: string) {
     saveDataToCloud()
   }
 
+  function setTaskOrder(orderedIds: string[]) {
+    const map = new Map(tasks.value.map(t => [t.id, t]))
+    tasks.value = orderedIds.map(id => map.get(id)).filter((t): t is Task => !!t)
+  }
+
+  function persistOrder() {
+    saveDataToCloud()
+  }
+
+async function migrateFromLegacy() {
+  if (!userId.value) return false
+  try {
+    const legacySnap = await getDoc(doc(db, 'frequence_data', 'default_user_data'))
+    if (legacySnap.exists()) {
+      applyData(legacySnap.data())
+      await saveDataToCloud()
+      return true
+    }
+    return false
+  } catch (error) {
+    console.error("Erreur de migration :", error)
+    return false
+  }
+}
+  
+
   return {
+    userId, userEmail, authLoading, authError,
     tasks, history, taskLog, timezone, lastActiveDay, todayKey,
     completedCount, totalCount, taskStats,
-    setTimezone, toggleTask, addTask, updateTask, deleteTask, loadDataFromCloud
+    initAuth, signUp, signIn, logout,
+    setTimezone, toggleTask, addTask, updateTask, deleteTask,
+    setTaskOrder, persistOrder,
+    
   }
 })

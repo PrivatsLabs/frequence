@@ -11,6 +11,7 @@ const editingId = ref<string | null>(null)
 const editingTitle = ref('')
 const editingIcon = ref('⚡')
 
+
 const emojis = [
   '⚡', '🏃‍♂️', '📚', '💻', '🧘', '💧', '🎯', '🔥',
   '✍️', '🍎', '🙏', '🚴‍♂️', '🏋️‍♂️', '🥗', '😴', '🧠',
@@ -47,6 +48,11 @@ const saveEdit = (id: string) => {
 
 const cancelEdit = () => {
   editingId.value = null
+}
+
+const handleLogout = () => {
+  store.logout()
+  isOpen.value = false
 }
 </script>
 
@@ -107,8 +113,8 @@ const cancelEdit = () => {
                       v-model="newTaskTitle"
                       type="text"
                       placeholder="Nom du rituel..."
-                      class="flex-1 px-3 py-2.5 rounded-2xl text-sm focus:outline-none"
-                      style="background: var(--surface); border: 1px solid var(--surface-hairline); color: var(--on-surface);"
+                      class="flex-1 px-3 py-2.5 rounded-2xl focus:outline-none"
+                      style="background: var(--surface); border: 1px solid var(--surface-hairline); color: var(--on-surface); font-size: 18px;"
                     />
                     <button
                       type="submit"
@@ -184,6 +190,19 @@ const cancelEdit = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              
+
+              <div class="mt-6 pt-5" style="border-top: 1px solid var(--surface-hairline);">
+                <p class="text-xs mb-3" style="color: var(--on-surface-faint);">Connecté en tant que {{ store.userEmail }}</p>
+                <button
+                  @click="handleLogout"
+                  class="w-full text-sm font-medium py-2.5 rounded-2xl"
+                  style="background: var(--surface-high); color: var(--on-surface-dim);"
+                >
+                  Se déconnecter
+                </button>
               </div>
             </div>
           </Transition>
