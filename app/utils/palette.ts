@@ -4,8 +4,15 @@ export const TASK_PALETTE = [
   '#A14A6E', // prune
   '#D1972E', // moutarde
   '#4C7C9B', // bleu ardoise
+
 ]
 
 export function nextColor(index: number): string {
-return TASK_PALETTE[index % TASK_PALETTE.length] ?? TASK_PALETTE[0]!
+  if (index < TASK_PALETTE.length) {
+    return TASK_PALETTE[index] ?? TASK_PALETTE[0]!
+  }
+  // Au-delà de la palette de base, génère une teinte inédite
+  // en tournant sur la roue chromatique (golden angle = bonne répartition visuelle)
+  const hue = (index * 137.5) % 360
+  return `hsl(${hue}, 45%, 55%)`
 }

@@ -142,13 +142,14 @@ export const useFrequenceStore = defineStore('frequence', () => {
     saveDataToCloud()
   }
 
-  function updateTask(id: string, newTitle: string) {
-    const task = tasks.value.find(t => t.id === id)
-    if (task && newTitle.trim()) {
-      task.title = newTitle.trim()
-      saveDataToCloud()
-    }
+function updateTask(id: string, newTitle: string, newIcon?: string) {
+  const task = tasks.value.find(t => t.id === id)
+  if (task && newTitle.trim()) {
+    task.title = newTitle.trim()
+    if (newIcon) task.icon = newIcon
+    saveDataToCloud()
   }
+}
 
   function deleteTask(id: string) {
     tasks.value = tasks.value.filter(t => t.id !== id)
