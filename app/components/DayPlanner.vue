@@ -58,6 +58,7 @@ function handleTileClick(e: MouseEvent, id: string) {
     </Transition>
 
     <!-- Liste des tâches -->
+      <!-- Liste des tâches -->
     <div class="space-y-3">
       <div
         v-for="task in store.tasks"
@@ -65,17 +66,19 @@ function handleTileClick(e: MouseEvent, id: string) {
         @click="handleTileClick($event, task.id)"
         class="ripple-container flex items-center justify-between p-4 rounded-[20px] cursor-pointer select-none"
         :style="{
-          background: task.completed ? 'var(--ember-container)' : 'var(--surface)',
-          border: `1px solid ${task.completed ? 'var(--ember-dim)' : 'var(--surface-hairline)'}`,
+          background: 'var(--surface)',
+          boxShadow: 'var(--shadow-card)',
           transition: 'all 320ms var(--ease-spring)',
-          transform: task.completed ? 'scale(0.99)' : 'scale(1)'
+          transform: task.completed ? 'scale(0.99)' : 'scale(1)',
+          opacity: task.completed ? 0.85 : 1
         }"
       >
         <div class="flex items-center gap-3.5 flex-1 pr-3">
           <span
-            class="text-xl w-9 h-9 rounded-2xl flex items-center justify-center shrink-0"
+            class="text-xl w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
             :style="{
-              background: task.completed ? 'var(--ember)' : 'var(--surface-high)',
+              background: task.color,
+              boxShadow: `0 8px 16px -6px ${task.color}99`,
               transform: task.completed ? 'scale(1.06)' : 'scale(1)',
               transition: 'all 320ms var(--ease-spring)'
             }"
@@ -97,17 +100,15 @@ function handleTileClick(e: MouseEvent, id: string) {
         <div
           class="w-8 h-8 rounded-2xl flex items-center justify-center shrink-0"
           :style="{
-            background: task.completed ? 'var(--ember)' : 'transparent',
+            background: task.completed ? task.color : 'transparent',
             border: task.completed ? 'none' : '2px solid var(--surface-hairline)',
+            boxShadow: task.completed ? `0 4px 10px -3px ${task.color}99` : 'none',
             transform: task.completed ? 'rotate(6deg) scale(1)' : 'scale(0.9)',
             transition: 'all 380ms var(--ease-spring)'
           }"
         >
-          <svg v-if="task.completed" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="#15120f" stroke-width="3">
-            <path
-              stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"
-              pathLength="1" stroke-dasharray="1" stroke-dashoffset="0"
-            />
+          <svg v-if="task.completed" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="3">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
       </div>

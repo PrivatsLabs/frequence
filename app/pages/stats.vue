@@ -5,8 +5,6 @@ import { spawnRipple } from '~/utils/ripple'
 
 const store = useFrequenceStore()
 
-const COLORS = ['#ff8a3d', '#9089fc', '#ffd166', '#ff5d8f', '#4dd4ac', '#5eb1ff']
-
 const RANGE_OPTIONS = [
   { label: '7j', value: 7 },
   { label: '30j', value: 30 },
@@ -26,10 +24,12 @@ const rangeDays = computed(() => {
   if (dates.length === 0) return 30
   const todayStr = formatDate(new Date())
   const earliest = dates.sort()[0]
+  if (!earliest) return 30
   const diffDays = Math.round((new Date(todayStr).getTime() - new Date(earliest).getTime()) / 86400000) + 1
   return Math.max(diffDays, 7)
 })
 
+// Les jours (dates) couverts par la période sélectionnée
 const timelineDays = computed(() => {
   const days: string[] = []
   for (let i = rangeDays.value - 1; i >= 0; i--) {
@@ -40,13 +40,13 @@ const timelineDays = computed(() => {
   return days
 })
 
-const series = computed(() => store.tasks.map((t, idx) => {
+const series = computed(() => store.tasks.map(t => {
   let cumulative = 0
   const points = timelineDays.value.map(day => {
     if ((store.taskLog[day] || []).includes(t.id)) cumulative++
     return cumulative
   })
-  return { id: t.id, title: t.title, icon: t.icon || '⚡', color: COLORS[idx % COLORS.length], points, total: cumulative }
+  return { id: t.id, title: t.title, icon: t.icon || '⚡', color: t.color || '#ED7A61', points, total: cumulative }
 }))
 
 const rankedSeries = computed(() => [...series.value].sort((a, b) => b.total - a.total))
@@ -69,7 +69,9 @@ const xLabels = computed(() => {
   const days = timelineDays.value
   const idxs = [...new Set([0, Math.floor((days.length - 1) / 2), days.length - 1])]
   const fmt = new Intl.DateTimeFormat('fr-FR', { timeZone: store.timezone, day: 'numeric', month: 'short' })
-  return idxs.map(i => ({ x: xPos(i), label: fmt.format(new Date(days[i])) }))
+  return idxs
+    .filter(i => days[i] !== undefined)
+    .map(i => ({ x: xPos(i), label: fmt.format(new Date(days[i] as string)) }))
 })
 
 const gridLines = [0, 0.25, 0.5, 0.75, 1]
@@ -85,7 +87,7 @@ const gridLines = [0, 0.25, 0.5, 0.75, 1]
     </div>
 
     <!-- Segmented control avec curseur animé -->
-    <div class="relative flex p-1 rounded-2xl w-fit" style="background: var(--surface-high);">
+    <div class="relative flex p-1 rounded-2xl w-fit" style="background: var(--surface-high); box-shadow: var(--shadow-card);">
       <div
         class="absolute top-1 bottom-1 rounded-xl"
         :style="{
@@ -99,7 +101,7 @@ const gridLines = [0, 0.25, 0.5, 0.75, 1]
         v-for="opt in RANGE_OPTIONS" :key="opt.value"
         @click="(e) => { spawnRipple(e); selectedRange = opt.value }"
         class="relative z-10 ripple-container px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors"
-        :style="{ color: selectedRange === opt.value ? '#15120f' : 'var(--on-surface-dim)' }"
+        :style="{ color: selectedRange === opt.value ? 'var(--surface)' : 'var(--on-surface-dim)' }"
       >
         {{ opt.label }}
       </button>
@@ -110,7 +112,7 @@ const gridLines = [0, 0.25, 0.5, 0.75, 1]
     </div>
 
     <template v-else>
-      <div class="p-4 rounded-[28px]" style="background: var(--surface); border: 1px solid var(--surface-hairline);">
+      <div class="p-4 rounded-[28px]" style="background: var(--surface); box-shadow: var(--shadow-card);">
         <svg :viewBox="`0 0 ${W} ${H}`" class="w-full h-auto overflow-visible">
           <line v-for="g in gridLines" :key="g" :x1="padL" :x2="W - padR" :y1="padT + plotH - g * plotH" :y2="padT + plotH - g * plotH" stroke="var(--surface-hairline)" stroke-width="1" />
           <polyline v-for="line in linePaths" :key="line.id" :points="line.d" fill="none" :stroke="line.color" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
@@ -123,7 +125,7 @@ const gridLines = [0, 0.25, 0.5, 0.75, 1]
         <div
           v-for="(s, idx) in rankedSeries" :key="s.id"
           class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl"
-          style="background: var(--surface); border: 1px solid var(--surface-hairline);"
+          style="background: var(--surface); box-shadow: var(--shadow-card);"
         >
           <div class="flex items-center gap-2.5 text-sm">
             <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: s.color }" />

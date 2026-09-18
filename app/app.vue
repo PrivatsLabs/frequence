@@ -18,7 +18,7 @@ import { spawnRipple } from '~/utils/ripple'
             to="/stats"
             @click="spawnRipple"
             class="ripple-container flex items-center justify-center w-11 h-11 rounded-2xl transition-transform active:scale-90"
-            style="background: var(--violet-container); color: var(--violet);"
+            style="background: var(--surface); color: var(--ember); box-shadow: var(--shadow-card);"
             title="Statistiques"
           >
             📊
