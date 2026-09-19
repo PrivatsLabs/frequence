@@ -1,22 +1,33 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useFrequenceStore } from '@/stores/frequence'
 import { spawnRipple } from '~/utils/ripple'
 
 const store = useFrequenceStore()
 
-const progress = computed(() => store.totalCount > 0 ? store.completedCount / store.totalCount : 0)
+const viewTasks = computed(() => store.viewingTasks)
+const viewCompletedCount = computed(() => viewTasks.value.filter(t => t.completed).length)
+const viewTotalCount = computed(() => viewTasks.value.length)
+
+const progress = computed(() => viewTotalCount.value > 0 ? viewCompletedCount.value / viewTotalCount.value : 0)
 const R = 54
 const CIRC = 2 * Math.PI * R
 const dashoffset = computed(() => CIRC * (1 - progress.value))
 
+const viewingDateLabel = computed(() => {
+  const d = new Date(store.viewingDateEffective + 'T12:00:00')
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: store.timezone, weekday: 'long', day: 'numeric', month: 'long'
+  }).format(d)
+})
+
 function handleTileClick(e: MouseEvent, id: string) {
   if (dragId.value) return
   spawnRipple(e)
-  store.toggleTask(id)
+  store.toggleTaskForDate(id)
 }
 
-// --- Drag to reorder ---
+// --- Drag to reorder (uniquement quand on regarde aujourd'hui) ---
 const dragId = ref<string | null>(null)
 const dragTranslateY = ref(0)
 let startClientY = 0
@@ -24,6 +35,7 @@ let rowHeight = 0
 let currentDragIndex = 0
 
 function onHandlePointerDown(e: PointerEvent, taskId: string) {
+  if (!store.isViewingToday) return
   e.stopPropagation()
   const row = (e.currentTarget as HTMLElement).closest('.task-row') as HTMLElement
   if (!row) return
@@ -44,7 +56,7 @@ function onPointerMove(e: PointerEvent) {
   const steps = Math.round(deltaY / rowHeight)
   const targetIndex = Math.min(Math.max(currentDragIndex + steps, 0), store.tasks.length - 1)
 
-    if (targetIndex !== currentDragIndex) {
+  if (targetIndex !== currentDragIndex) {
     const arr = [...store.tasks]
     const fromIndex = arr.findIndex(t => t.id === dragId.value)
     const item = arr[fromIndex]
@@ -70,32 +82,54 @@ function onPointerUp() {
 <template>
   <div class="w-full">
     <div
-      class="flex items-center gap-5 p-5 mb-6 rounded-[28px]"
+      class="flex items-center gap-5 p-5 mb-4 rounded-[28px]"
       style="background: var(--surface); box-shadow: var(--shadow-card);"
     >
       <svg width="104" height="104" viewBox="0 0 120 120" class="shrink-0 -rotate-90">
         <circle cx="60" cy="60" :r="R" fill="none" stroke="var(--surface-high)" stroke-width="10" />
         <circle
           cx="60" cy="60" :r="R" fill="none"
-          stroke="var(--ember)" stroke-width="10" stroke-linecap="round"
+          :stroke="store.isViewingToday ? 'var(--ember)' : 'var(--violet)'" stroke-width="10" stroke-linecap="round"
           :stroke-dasharray="CIRC" :stroke-dashoffset="dashoffset"
           style="transition: stroke-dashoffset 700ms var(--ease-spring);"
         />
       </svg>
       <div class="flex-1">
-        <h2 class="text-xl font-bold tracking-tight" style="font-family: var(--font-display);">Rituels du jour</h2>
-        <p class="text-xs mb-2" style="color: var(--on-surface-dim);">Ce que tu fais obligatoirement aujourd'hui</p>
+        <h2 class="text-xl font-bold tracking-tight" style="font-family: var(--font-display);">
+          {{ store.isViewingToday ? 'Rituels du jour' : 'Rituels du ' }}
+        </h2>
+        <p class="text-xs mb-2" style="color: var(--on-surface-dim);">
+          {{ store.isViewingToday ? "Ce que tu fais obligatoirement aujourd'hui" : viewingDateLabel }}
+        </p>
         <Transition name="pop" mode="out-in">
-          <div :key="store.completedCount" class="text-2xl font-extrabold" style="font-family: var(--font-display); color: var(--ember);">
-            {{ store.completedCount }}<span class="text-sm font-medium" style="color: var(--on-surface-faint);"> / {{ store.totalCount }}</span>
+          <div :key="viewCompletedCount" class="text-2xl font-extrabold" :style="{ fontFamily: 'var(--font-display)', color: store.isViewingToday ? 'var(--ember)' : 'var(--violet)' }">
+            {{ viewCompletedCount }}<span class="text-sm font-medium" style="color: var(--on-surface-faint);"> / {{ viewTotalCount }}</span>
           </div>
         </Transition>
       </div>
     </div>
 
+    <!-- Bandeau "consultation du passé" -->
     <Transition name="pop">
       <div
-        v-if="store.totalCount > 0 && store.completedCount === store.totalCount"
+        v-if="!store.isViewingToday"
+        class="flex items-center justify-between mb-4 p-3 rounded-2xl"
+        style="background: var(--violet-container);"
+      >
+        <span class="text-xs font-medium" style="color: var(--violet);">📅 Tu corriges un jour passé</span>
+        <button
+          @click="store.resetViewingDate()"
+          class="text-xs font-semibold px-3 py-1.5 rounded-xl"
+          style="background: var(--surface); color: var(--violet);"
+        >
+          ← Revenir à aujourd'hui
+        </button>
+      </div>
+    </Transition>
+
+    <Transition name="pop">
+      <div
+        v-if="store.isViewingToday && viewTotalCount > 0 && viewCompletedCount === viewTotalCount"
         class="celebrate-in mb-5 p-4 rounded-[28px] text-center"
         style="background: var(--ember-container); box-shadow: var(--shadow-card);"
       >
@@ -107,7 +141,7 @@ function onPointerUp() {
 
     <div class="space-y-3">
       <div
-        v-for="task in store.tasks"
+        v-for="task in viewTasks"
         :key="task.id"
         class="task-row ripple-container flex items-center justify-between p-4 rounded-[20px] cursor-pointer select-none"
         :style="{
@@ -124,6 +158,7 @@ function onPointerUp() {
       >
         <div class="flex items-center gap-2.5 flex-1 pr-3">
           <span
+            v-if="store.isViewingToday"
             class="text-base px-1 py-2 touch-none"
             style="color: var(--on-surface-faint); cursor: grab;"
             @pointerdown="onHandlePointerDown($event, task.id)"

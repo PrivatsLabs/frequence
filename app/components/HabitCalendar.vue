@@ -25,20 +25,30 @@ const recentDays = computed(() => {
 
     const count = safeCount(store.history[dateStr])
     const ratio = store.totalCount > 0 ? Math.min(count / store.totalCount, 1) : 0
+    const isToday = dateStr === store.todayKey
+    const isViewed = dateStr === store.viewingDateEffective
 
-    days.push({ date: dateStr, label: labelFormatter.format(d), count, ratio })
+    days.push({ date: dateStr, label: labelFormatter.format(d), count, ratio, isToday, isViewed })
   }
   return days
 })
 </script>
 
 <template>
-  <div class="w-full mt-6 p-5 rounded-[28px]" style="background: var(--surface); border: 1px solid var(--surface-hairline);">
-    <h3 class="text-sm font-semibold mb-4" style="color: var(--on-surface-dim);">Suivi de régularité</h3>
+  <div class="w-full mt-6 p-5 rounded-[28px]" style="background: var(--surface); box-shadow: var(--shadow-card);">
+    <h3 class="text-sm font-semibold mb-1" style="color: var(--on-surface-dim);">Suivi de régularité</h3>
+    <p class="text-xs mb-4" style="color: var(--on-surface-faint);">Touche un jour pour revoir ou corriger tes rituels</p>
 
     <div class="grid grid-cols-7 gap-2">
-      <div v-for="day in recentDays" :key="day.date" class="flex flex-col items-center gap-1.5">
-        <span class="text-[10px] font-mono" style="color: var(--on-surface-faint);">{{ day.label }}</span>
+      <button
+        v-for="day in recentDays" :key="day.date"
+        @click="store.setViewingDate(day.date)"
+        class="flex flex-col items-center gap-1.5"
+      >
+        <span
+          class="text-[10px] font-mono"
+          :style="{ color: day.isToday ? 'var(--ember)' : 'var(--on-surface-faint)', fontWeight: day.isToday ? 700 : 400 }"
+        >{{ day.label }}</span>
 
         <div
           class="w-8 h-8 rounded-[14px] flex items-center justify-center font-bold text-[11px]"
@@ -46,14 +56,16 @@ const recentDays = computed(() => {
             background: day.ratio > 0
               ? `color-mix(in srgb, var(--ember) ${Math.round(day.ratio * 100)}%, var(--surface-high))`
               : 'var(--surface-high)',
-            color: day.ratio > 0.5 ? '#15120f' : 'var(--on-surface-dim)',
-            boxShadow: day.ratio === 1 ? '0 0 0 2px var(--ember)' : 'none',
+            color: day.ratio > 0.5 ? '#fff' : 'var(--on-surface-dim)',
+            boxShadow: day.isViewed
+              ? '0 0 0 2px var(--violet)'
+              : (day.ratio === 1 ? '0 0 0 2px var(--ember)' : 'none'),
             transition: 'all 320ms var(--ease-standard)'
           }"
         >
           {{ day.count }}
         </div>
-      </div>
+      </button>
     </div>
   </div>
 </template>

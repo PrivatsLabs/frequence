@@ -260,6 +260,47 @@ async function migrateFromLegacy() {
     return false
   }
 }
+
+// --- Consultation / édition d'un jour passé ---
+const viewingDate = ref<string>('') // vide = on regarde aujourd'hui
+
+const viewingDateEffective = computed(() => viewingDate.value || todayKey.value)
+const isViewingToday = computed(() => viewingDateEffective.value === todayKey.value)
+
+const viewingTasks = computed(() => {
+  if (isViewingToday.value) return tasks.value
+  const dayIds = taskLog.value[viewingDateEffective.value] || []
+  return tasks.value.map(t => ({ ...t, completed: dayIds.includes(t.id) }))
+})
+
+function setViewingDate(date: string) {
+  viewingDate.value = date
+}
+
+function resetViewingDate() {
+  viewingDate.value = ''
+}
+
+function toggleTaskForDate(id: string) {
+  if (isViewingToday.value) {
+    toggleTask(id)
+    return
+  }
+  const date = viewingDateEffective.value
+  const dayLog = taskLog.value[date] ?? []
+  const idx = dayLog.indexOf(id)
+  if (idx >= 0) {
+    dayLog.splice(idx, 1)
+  } else {
+    dayLog.push(id)
+  }
+  taskLog.value[date] = dayLog
+  history.value[date] = dayLog.length
+  saveDataToCloud()
+
+  hapticTick()
+  playTaskComplete()
+}
   
 
   return {
@@ -268,7 +309,8 @@ async function migrateFromLegacy() {
     completedCount, totalCount, taskStats,
     initAuth, signUp, signIn, logout,
     setTimezone, toggleTask, addTask, updateTask, deleteTask,
-    setTaskOrder, persistOrder,
+    setTaskOrder, persistOrder,viewingDate, viewingDateEffective, isViewingToday, viewingTasks,
+setViewingDate, resetViewingDate, toggleTaskForDate
     
   }
 })
